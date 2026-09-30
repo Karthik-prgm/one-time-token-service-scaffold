@@ -7,25 +7,34 @@
 //   3. Count how many returned { ok: true } and assert it is exactly 1.
 //   4. Print the winners count so it shows in the output.
 
+import assert from "node:assert/strict";
 import { issueToken, consumeToken, closeRedis } from "./token-service.js";
 
 async function main() {
-  const id = await issueToken({ userId: 42 }, 60);
-  console.log("issued token:", id);
+  try {
+    const id = await issueToken({ userId: 42 }, 60);
+    console.log("issued token:", id);
 
-  // TODO: fire 5 consumers concurrently with Promise.all
-  const results = await Promise.all([
-    // consumeToken(id), consumeToken(id), consumeToken(id),
-    // consumeToken(id), consumeToken(id),
-  ]);
+    // Fire all 5 consumers concurrently.
+    const results = await Promise.all([
+      consumeToken(id),
+      consumeToken(id),
+      consumeToken(id),
+      consumeToken(id),
+      consumeToken(id),
+    ]);
 
-  const winners = results.filter((r) => r.ok).length;
-  console.log("winners:", winners); // expect exactly 1
+    const winners = results.filter((r) => r.ok).length;
+    console.log("winners:", winners);
 
-  console.assert(winners === 1, "SINGLE-USE VIOLATED! winners = " + winners);
-  if (winners === 1) console.log("PASS: token was single-use.");
-
-  await closeRedis();
+    assert.equal(winners, 1, "SINGLE-USE VIOLATED! winners = " + winners);
+    console.log("PASS: token was single-use.");
+  } finally {
+    await closeRedis();
+  }
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
